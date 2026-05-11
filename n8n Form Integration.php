@@ -1,0 +1,241 @@
+<?php
+/**
+ * Plugin Name: n8n Form Integration
+ * Plugin URI: https://github.com/jcjason12108-alt/embed-n8n-Forms/
+ * Description: Manage multiple n8n form embeds and generate shortcodes to place them anywhere. Shortcode: [n8n_form id="your-form-slug" maxwidth="1000px" minheight="70vh" width="100%"].
+ * Version: 1.0.3
+ * Requires at least: 6.0
+ * Tested up to: 6.9.4
+ * Requires PHP: 7.4
+ * Author: Jason Cox
+ * Author URI: https://www.iamll706.org
+ * License: GPLv2 or later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ * Text Domain: n8n-form-integration
+ */
+
+if (!defined('ABSPATH')) { exit; }
+
+require_once __DIR__ . '/plugin-update-checker/plugin-update-checker.php';
+
+$ll706_n8n_forms_update_checker = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
+	'https://github.com/jcjason12108-alt/embed-n8n-Forms/',
+	__FILE__,
+	'n8n-form-integration'
+);
+$ll706_n8n_forms_update_checker->setBranch('main');
+
+$ll706_n8n_forms_github_token = defined('PLUGIN_UPDATE_GITHUB_TOKEN')
+	? PLUGIN_UPDATE_GITHUB_TOKEN
+	: getenv('PLUGIN_UPDATE_GITHUB_TOKEN');
+
+if (!empty($ll706_n8n_forms_github_token)) {
+	$ll706_n8n_forms_update_checker->setAuthentication($ll706_n8n_forms_github_token);
+}
+
+add_filter(
+	$ll706_n8n_forms_update_checker->getUniqueName('vcs_update_detection_strategies'),
+	static function (array $strategies): array {
+		return isset($strategies['branch']) ? ['branch' => $strategies['branch']] : $strategies;
+	}
+);
+
+class LL706_N8N_Forms_Plugin {
+	const OPTION_KEY = 'll706_n8n_forms';
+	const NONCE_KEY  = 'll706_n8n_forms_nonce';
+
+	public function __construct() {
+		add_action('admin_menu', [$this, 'add_menu']);
+		add_action('admin_init', [$this, 'maybe_handle_post']);
+		add_shortcode('n8n_form', [$this, 'shortcode_render']);
+	}
+
+	public function add_menu() {
+		add_options_page(
+			'n8n Form Integration',
+			'n8n Form Integration',
+			'manage_options',
+			'll706-n8n-forms',
+			[$this, 'render_settings_page']
+		);
+	}
+
+	public function maybe_handle_post() {
+		if (!is_admin() || !current_user_can('manage_options')) return;
+
+		if (!isset($_POST[self::NONCE_KEY]) || !wp_verify_nonce($_POST[self::NONCE_KEY], 'save_ll706_n8n_forms')) return;
+
+		$forms = get_option(self::OPTION_KEY, []);
+		if (!is_array($forms)) $forms = [];
+
+		$action = isset($_POST['ll706_action']) ? sanitize_text_field($_POST['ll706_action']) : '';
+		if ($action === 'add_or_update') {
+			$name = isset($_POST['form_name']) ? sanitize_text_field($_POST['form_name']) : '';
+			$slug_raw = isset($_POST['form_slug']) ? $_POST['form_slug'] : '';
+			$slug = sanitize_title($slug_raw ?: $name);
+			$url  = isset($_POST['form_url']) ? esc_url_raw(trim($_POST['form_url'])) : '';
+			$maxwidth  = isset($_POST['form_maxwidth']) ? sanitize_text_field($_POST['form_maxwidth']) : '1000px';
+			$minheight = isset($_POST['form_minheight']) ? sanitize_text_field($_POST['form_minheight']) : '70vh';
+			$width     = isset($_POST['form_width']) ? sanitize_text_field($_POST['form_width']) : '100%';
+			$referrer  = isset($_POST['form_referrerpolicy']) ? sanitize_text_field($_POST['form_referrerpolicy']) : 'no-referrer';
+			$loading   = isset($_POST['form_loading']) ? sanitize_text_field($_POST['form_loading']) : 'lazy';
+
+			if ($slug && $url) {
+				$forms[$slug] = [
+					'name' => $name ?: $slug,
+					'slug' => $slug,
+					'url'  => $url,
+					'maxwidth' => $maxwidth,
+					'minheight'=> $minheight,
+					'width'    => $width,
+					'referrerpolicy' => $referrer,
+					'loading'  => $loading,
+				];
+				update_option(self::OPTION_KEY, $forms, false);
+				add_settings_error('ll706_n8n_forms', 'saved', 'Form saved.', 'updated');
+			}
+		}
+		elseif ($action === 'delete' && !empty($_POST['delete_slug'])) {
+			$del = sanitize_title($_POST['delete_slug']);
+			if (isset($forms[$del])) {
+				unset($forms[$del]);
+				update_option(self::OPTION_KEY, $forms, false);
+				add_settings_error('ll706_n8n_forms', 'deleted', 'Form deleted.', 'updated');
+			}
+		}
+	}
+
+	public function render_settings_page() {
+		if (!current_user_can('manage_options')) return;
+		$forms = get_option(self::OPTION_KEY, []);
+		if (!is_array($forms)) $forms = [];
+		settings_errors('ll706_n8n_forms');
+		?>
+		<div class="wrap">
+			<h1>n8n Form Integration</h1>
+			<p>Manage multiple n8n form URLs and use the shortcode <code>[n8n_form id="your-form-slug"]</code> to embed them. Override dimensions via shortcode attributes: <code>maxwidth</code>, <code>minheight</code>, <code>width</code>.</p>
+
+			<h2>Add / Update a Form</h2>
+			<form method="post">
+				<?php wp_nonce_field('save_ll706_n8n_forms', self::NONCE_KEY); ?>
+				<input type="hidden" name="ll706_action" value="add_or_update" />
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="form_name">Name</label></th>
+						<td><input type="text" id="form_name" name="form_name" class="regular-text" placeholder="Intake Form" /></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="form_slug">Slug (optional)</label></th>
+						<td><input type="text" id="form_slug" name="form_slug" class="regular-text" placeholder="intake-form" />
+						<p class="description">Leave blank to auto-generate from Name.</p></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="form_url">Form URL</label></th>
+						<td><input type="url" id="form_url" name="form_url" class="regular-text code" placeholder="https://n8n.example.org/form/xxxx" required /></td>
+					</tr>
+					<tr>
+						<th scope="row">Appearance (optional)</th>
+						<td>
+							<label>Max Width <input type="text" name="form_maxwidth" value="1000px" class="small-text" /></label>
+							&nbsp; <label>Min Height <input type="text" name="form_minheight" value="70vh" class="small-text" /></label>
+							&nbsp; <label>Width <input type="text" name="form_width" value="100%" class="small-text" /></label>
+							<p class="description">Accepts CSS units (e.g., 800px, 100%, 70vh).</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">Advanced (optional)
+							<span class="dashicons dashicons-info" title="Referrer Policy controls how much of your site URL is shared when the form loads. 'no-referrer' hides it completely; 'origin' sends just your domain; 'strict-origin-when-cross-origin' is the default in most browsers."></span>
+						</th>
+						<td>
+							<label>Referrer Policy
+								<select name="form_referrerpolicy">
+									<?php foreach (['no-referrer','origin-when-cross-origin','strict-origin-when-cross-origin','same-origin'] as $opt): ?>
+									<option value="<?php echo esc_attr($opt); ?>"><?php echo esc_html($opt); ?></option>
+									<?php endforeach; ?>
+								</select>
+							</label>
+							&nbsp; <label>Loading
+								<select name="form_loading">
+									<?php foreach (['lazy','eager'] as $opt): ?>
+									<option value="<?php echo esc_attr($opt); ?>"><?php echo esc_html($opt); ?></option>
+									<?php endforeach; ?>
+								</select>
+							</label>
+						</td>
+					</tr>
+				</table>
+				<?php submit_button('Save Form'); ?>
+			</form>
+
+			<hr/>
+			<h2>Saved Forms</h2>
+			<?php if (empty($forms)): ?>
+				<p>No forms saved yet.</p>
+			<?php else: ?>
+				<table class="widefat fixed striped">
+					<thead>
+						<tr>
+							<th>Name</th>
+							<th>Slug</th>
+							<th>URL</th>
+							<th>Shortcode</th>
+							<th style="width:120px;">Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+					<?php foreach ($forms as $slug => $f): ?>
+						<tr>
+							<td><?php echo esc_html($f['name']); ?></td>
+							<td><code><?php echo esc_html($slug); ?></code></td>
+							<td><code style="word-break:break-all;"><?php echo esc_url($f['url']); ?></code></td>
+							<td><code>[n8n_form id="<?php echo esc_html($slug); ?>"]</code></td>
+							<td>
+								<form method="post" style="display:inline" onsubmit="return confirm('Delete this form?');">
+									<?php wp_nonce_field('save_ll706_n8n_forms', self::NONCE_KEY); ?>
+									<input type="hidden" name="ll706_action" value="delete" />
+									<input type="hidden" name="delete_slug" value="<?php echo esc_attr($slug); ?>" />
+									<?php submit_button('Delete', 'delete small', 'submit', false); ?>
+								</form>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	public function shortcode_render($atts = []) {
+		$atts = shortcode_atts([
+			'id' => '',
+			'maxwidth' => '',
+			'minheight' => '',
+			'width' => '',
+		], $atts, 'n8n_form');
+
+		$forms = get_option(self::OPTION_KEY, []);
+		$slug = sanitize_title($atts['id']);
+		if (!$slug || empty($forms[$slug])) return '';
+
+		$f = $forms[$slug];
+		$url = isset($f['url']) ? $f['url'] : '';
+		if (!$url) return '';
+
+		$maxwidth = $atts['maxwidth'] ? sanitize_text_field($atts['maxwidth']) : (isset($f['maxwidth']) ? $f['maxwidth'] : '1000px');
+		$minheight= $atts['minheight']? sanitize_text_field($atts['minheight']) : (isset($f['minheight'])? $f['minheight'] : '70vh');
+		$width    = $atts['width'] ? sanitize_text_field($atts['width']) : (isset($f['width']) ? $f['width'] : '100%');
+		$referrer = isset($f['referrerpolicy']) ? $f['referrerpolicy'] : 'no-referrer';
+		$loading  = isset($f['loading']) ? $f['loading'] : 'lazy';
+
+		$container_style = sprintf('max-width:%s;margin:0 auto;min-height:%s;', esc_attr($maxwidth), esc_attr($minheight));
+		$iframe_style    = sprintf('border:0;width:%s;height:100%%;min-height:%s;display:block;', esc_attr($width), esc_attr($minheight));
+
+		$html  = '<div class="ll706-form-container" style="' . $container_style . '">';
+		$html .= '<iframe src="' . esc_url($url) . '" loading="' . esc_attr($loading) . '" referrerpolicy="' . esc_attr($referrer) . '" style="' . $iframe_style . '"></iframe>';
+		$html .= '</div>';
+		return $html;
+	}
+}
+
+new LL706_N8N_Forms_Plugin();
