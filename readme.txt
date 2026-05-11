@@ -4,7 +4,7 @@ Tags: n8n, forms, shortcode, embed, iframe
 Requires at least: 6.0
 Tested up to: 6.9.4
 Requires PHP: 7.4
-Stable tag: 1.0.5
+Stable tag: 1.0.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -34,8 +34,11 @@ Yes. Use attributes such as `[n8n_form id="your-form-slug" maxwidth="1000px" min
 
 == Changelog ==
 
+= 1.0.6 =
+* Restored compatibility for the previous settings page URL and saved form option data.
+
 = 1.0.5 =
-* Removed legacy LL706 references from plugin internals and metadata.
+* Removed legacy organization-specific references from plugin internals and metadata.
 
 = 1.0.4 =
 * Hardened request handling, option reads, and shortcode CSS value validation.

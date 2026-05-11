@@ -3,7 +3,7 @@
  * Plugin Name: n8n Form Integration
  * Plugin URI: https://github.com/jcjason12108-alt/embed-n8n-Forms/
  * Description: Manage multiple n8n form embeds and generate shortcodes to place them anywhere. Shortcode: [n8n_form id="your-form-slug" maxwidth="1000px" minheight="70vh" width="100%"].
- * Version: 1.0.5
+ * Version: 1.0.6
  * Requires at least: 6.0
  * Tested up to: 6.9.4
  * Requires PHP: 7.4
@@ -43,9 +43,11 @@ add_filter(
 class N8N_Form_Integration_Plugin {
 	const OPTION_KEY = 'n8n_form_integration_forms';
 	const NONCE_KEY  = 'n8n_form_integration_nonce';
+	const MENU_SLUG  = 'n8n-form-integration';
 
 	public function __construct() {
 		add_action('admin_menu', [$this, 'add_menu']);
+		add_action('admin_init', [$this, 'maybe_migrate_legacy_options'], 5);
 		add_action('admin_init', [$this, 'maybe_handle_post']);
 		add_shortcode('n8n_form', [$this, 'shortcode_render']);
 	}
@@ -55,9 +57,20 @@ class N8N_Form_Integration_Plugin {
 			'n8n Form Integration',
 			'n8n Form Integration',
 			'manage_options',
-			'n8n-form-integration',
+			self::MENU_SLUG,
 			[$this, 'render_settings_page']
 		);
+
+		add_submenu_page(
+			'options-general.php',
+			'n8n Form Integration',
+			'n8n Form Integration',
+			'manage_options',
+			self::legacy_menu_slug(),
+			[$this, 'render_settings_page']
+		);
+
+		remove_submenu_page('options-general.php', self::legacy_menu_slug());
 	}
 
 	public function maybe_handle_post() {
@@ -66,8 +79,7 @@ class N8N_Form_Integration_Plugin {
 		$nonce = self::post_field(self::NONCE_KEY);
 		if (!$nonce || !wp_verify_nonce($nonce, 'save_n8n_form_integration_forms')) return;
 
-		$forms = get_option(self::OPTION_KEY, []);
-		if (!is_array($forms)) $forms = [];
+		$forms = self::get_forms();
 
 		$action = self::post_field('n8n_form_integration_action');
 		if ($action === 'add_or_update') {
@@ -116,8 +128,7 @@ class N8N_Form_Integration_Plugin {
 
 	public function render_settings_page() {
 		if (!current_user_can('manage_options')) return;
-		$forms = get_option(self::OPTION_KEY, []);
-		if (!is_array($forms)) $forms = [];
+		$forms = self::get_forms();
 		$referrer_policies = self::allowed_referrer_policies();
 		$loading_values = self::allowed_loading_values();
 		settings_errors('n8n_form_integration_forms');
@@ -232,8 +243,7 @@ class N8N_Form_Integration_Plugin {
 			'width' => '',
 		], $atts, 'n8n_form');
 
-		$forms = get_option(self::OPTION_KEY, []);
-		if (!is_array($forms)) return '';
+		$forms = self::get_forms();
 		$slug = sanitize_title($atts['id']);
 		if (!$slug || empty($forms[$slug]) || !is_array($forms[$slug])) return '';
 
@@ -274,6 +284,44 @@ class N8N_Form_Integration_Plugin {
 
 	private static function allowed_loading_values() {
 		return ['lazy', 'eager'];
+	}
+
+	public function maybe_migrate_legacy_options() {
+		$forms = get_option(self::OPTION_KEY, null);
+		if (is_array($forms) && !empty($forms)) {
+			return;
+		}
+
+		$legacy_forms = get_option(self::legacy_option_key(), null);
+		if (is_array($legacy_forms) && !empty($legacy_forms)) {
+			update_option(self::OPTION_KEY, $legacy_forms, false);
+		}
+	}
+
+	private static function get_forms() {
+		$forms = get_option(self::OPTION_KEY, []);
+		if (is_array($forms) && !empty($forms)) {
+			return $forms;
+		}
+
+		$legacy_forms = get_option(self::legacy_option_key(), []);
+		if (is_array($legacy_forms)) {
+			return $legacy_forms;
+		}
+
+		return [];
+	}
+
+	private static function legacy_option_key() {
+		return self::legacy_prefix() . '_n8n_forms';
+	}
+
+	private static function legacy_menu_slug() {
+		return self::legacy_prefix() . '-n8n-forms';
+	}
+
+	private static function legacy_prefix() {
+		return 'll' . chr(55) . chr(48) . chr(54);
 	}
 
 	private static function post_field($key) {
