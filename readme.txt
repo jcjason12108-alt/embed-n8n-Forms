@@ -1,5 +1,5 @@
 === n8n Form Integration ===
-Contributors: iamll706
+Contributors: Jason Cox
 Tags: n8n, forms, shortcode, embed, iframe
 Requires at least: 6.0
 Tested up to: 6.9.4

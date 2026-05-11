@@ -8,7 +8,7 @@
  * Tested up to: 6.9.4
  * Requires PHP: 7.4
  * Author: Jason Cox
- * Author URI: https://www.iamll706.org
+ * Author URI: https://github.com/jcjason12108-alt
  * License: GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: n8n-form-integration
@@ -18,31 +18,31 @@ if (!defined('ABSPATH')) { exit; }
 
 require_once __DIR__ . '/plugin-update-checker/plugin-update-checker.php';
 
-$ll706_n8n_forms_update_checker = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
+$n8n_form_integration_forms_update_checker = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
 	'https://github.com/jcjason12108-alt/embed-n8n-Forms/',
 	__FILE__,
 	'n8n-form-integration'
 );
-$ll706_n8n_forms_update_checker->setBranch('main');
+$n8n_form_integration_forms_update_checker->setBranch('main');
 
-$ll706_n8n_forms_github_token = defined('PLUGIN_UPDATE_GITHUB_TOKEN')
+$n8n_form_integration_forms_github_token = defined('PLUGIN_UPDATE_GITHUB_TOKEN')
 	? PLUGIN_UPDATE_GITHUB_TOKEN
 	: getenv('PLUGIN_UPDATE_GITHUB_TOKEN');
 
-if (!empty($ll706_n8n_forms_github_token)) {
-	$ll706_n8n_forms_update_checker->setAuthentication($ll706_n8n_forms_github_token);
+if (!empty($n8n_form_integration_forms_github_token)) {
+	$n8n_form_integration_forms_update_checker->setAuthentication($n8n_form_integration_forms_github_token);
 }
 
 add_filter(
-	$ll706_n8n_forms_update_checker->getUniqueName('vcs_update_detection_strategies'),
+	$n8n_form_integration_forms_update_checker->getUniqueName('vcs_update_detection_strategies'),
 	static function (array $strategies): array {
 		return isset($strategies['branch']) ? ['branch' => $strategies['branch']] : $strategies;
 	}
 );
 
-class LL706_N8N_Forms_Plugin {
-	const OPTION_KEY = 'll706_n8n_forms';
-	const NONCE_KEY  = 'll706_n8n_forms_nonce';
+class N8N_Form_Integration_Plugin {
+	const OPTION_KEY = 'n8n_form_integration_forms';
+	const NONCE_KEY  = 'n8n_form_integration_nonce';
 
 	public function __construct() {
 		add_action('admin_menu', [$this, 'add_menu']);
@@ -55,7 +55,7 @@ class LL706_N8N_Forms_Plugin {
 			'n8n Form Integration',
 			'n8n Form Integration',
 			'manage_options',
-			'll706-n8n-forms',
+			'n8n-form-integration',
 			[$this, 'render_settings_page']
 		);
 	}
@@ -64,12 +64,12 @@ class LL706_N8N_Forms_Plugin {
 		if (!is_admin() || !current_user_can('manage_options')) return;
 
 		$nonce = self::post_field(self::NONCE_KEY);
-		if (!$nonce || !wp_verify_nonce($nonce, 'save_ll706_n8n_forms')) return;
+		if (!$nonce || !wp_verify_nonce($nonce, 'save_n8n_form_integration_forms')) return;
 
 		$forms = get_option(self::OPTION_KEY, []);
 		if (!is_array($forms)) $forms = [];
 
-		$action = self::post_field('ll706_action');
+		$action = self::post_field('n8n_form_integration_action');
 		if ($action === 'add_or_update') {
 			$name = self::post_field('form_name');
 			$slug_raw = self::post_field('form_slug');
@@ -101,7 +101,7 @@ class LL706_N8N_Forms_Plugin {
 					'loading'  => $loading,
 				];
 				update_option(self::OPTION_KEY, $forms, false);
-				add_settings_error('ll706_n8n_forms', 'saved', 'Form saved.', 'updated');
+				add_settings_error('n8n_form_integration_forms', 'saved', 'Form saved.', 'updated');
 			}
 		}
 		elseif ($action === 'delete' && !empty($_POST['delete_slug'])) {
@@ -109,7 +109,7 @@ class LL706_N8N_Forms_Plugin {
 			if (isset($forms[$del])) {
 				unset($forms[$del]);
 				update_option(self::OPTION_KEY, $forms, false);
-				add_settings_error('ll706_n8n_forms', 'deleted', 'Form deleted.', 'updated');
+				add_settings_error('n8n_form_integration_forms', 'deleted', 'Form deleted.', 'updated');
 			}
 		}
 	}
@@ -120,7 +120,7 @@ class LL706_N8N_Forms_Plugin {
 		if (!is_array($forms)) $forms = [];
 		$referrer_policies = self::allowed_referrer_policies();
 		$loading_values = self::allowed_loading_values();
-		settings_errors('ll706_n8n_forms');
+		settings_errors('n8n_form_integration_forms');
 		?>
 		<div class="wrap">
 			<h1>n8n Form Integration</h1>
@@ -128,8 +128,8 @@ class LL706_N8N_Forms_Plugin {
 
 			<h2>Add / Update a Form</h2>
 			<form method="post">
-				<?php wp_nonce_field('save_ll706_n8n_forms', self::NONCE_KEY); ?>
-				<input type="hidden" name="ll706_action" value="add_or_update" />
+				<?php wp_nonce_field('save_n8n_form_integration_forms', self::NONCE_KEY); ?>
+				<input type="hidden" name="n8n_form_integration_action" value="add_or_update" />
 				<table class="form-table" role="presentation">
 					<tr>
 						<th scope="row"><label for="form_name">Name</label></th>
@@ -209,8 +209,8 @@ class LL706_N8N_Forms_Plugin {
 							<td><code>[n8n_form id="<?php echo esc_html($slug); ?>"]</code></td>
 							<td>
 								<form method="post" style="display:inline" onsubmit="return confirm('Delete this form?');">
-									<?php wp_nonce_field('save_ll706_n8n_forms', self::NONCE_KEY); ?>
-									<input type="hidden" name="ll706_action" value="delete" />
+									<?php wp_nonce_field('save_n8n_form_integration_forms', self::NONCE_KEY); ?>
+									<input type="hidden" name="n8n_form_integration_action" value="delete" />
 									<input type="hidden" name="delete_slug" value="<?php echo esc_attr($slug); ?>" />
 									<?php submit_button('Delete', 'delete small', 'submit', false); ?>
 								</form>
@@ -262,7 +262,7 @@ class LL706_N8N_Forms_Plugin {
 		$container_style = sprintf('max-width:%s;margin:0 auto;min-height:%s;', esc_attr($maxwidth), esc_attr($minheight));
 		$iframe_style    = sprintf('border:0;width:%s;height:100%%;min-height:%s;display:block;', esc_attr($width), esc_attr($minheight));
 
-		$html  = '<div class="ll706-form-container" style="' . $container_style . '">';
+		$html  = '<div class="n8n-form-integration-container" style="' . $container_style . '">';
 		$html .= '<iframe src="' . esc_url($url) . '" loading="' . esc_attr($loading) . '" referrerpolicy="' . esc_attr($referrer) . '" style="' . $iframe_style . '"></iframe>';
 		$html .= '</div>';
 		return $html;
@@ -303,4 +303,4 @@ class LL706_N8N_Forms_Plugin {
 	}
 }
 
-new LL706_N8N_Forms_Plugin();
+new N8N_Form_Integration_Plugin();
