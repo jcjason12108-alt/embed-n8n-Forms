@@ -3,7 +3,7 @@
  * Plugin Name: n8n Form Integration
  * Plugin URI: https://github.com/jcjason12108-alt/embed-n8n-Forms/
  * Description: Manage multiple n8n form embeds and generate shortcodes to place them anywhere. Shortcode: [n8n_form id="your-form-slug" maxwidth="1000px" minheight="70vh" width="100%"].
- * Version: 1.0.3
+ * Version: 1.0.4
  * Requires at least: 6.0
  * Tested up to: 6.9.4
  * Requires PHP: 7.4
@@ -63,22 +63,31 @@ class LL706_N8N_Forms_Plugin {
 	public function maybe_handle_post() {
 		if (!is_admin() || !current_user_can('manage_options')) return;
 
-		if (!isset($_POST[self::NONCE_KEY]) || !wp_verify_nonce($_POST[self::NONCE_KEY], 'save_ll706_n8n_forms')) return;
+		$nonce = self::post_field(self::NONCE_KEY);
+		if (!$nonce || !wp_verify_nonce($nonce, 'save_ll706_n8n_forms')) return;
 
 		$forms = get_option(self::OPTION_KEY, []);
 		if (!is_array($forms)) $forms = [];
 
-		$action = isset($_POST['ll706_action']) ? sanitize_text_field($_POST['ll706_action']) : '';
+		$action = self::post_field('ll706_action');
 		if ($action === 'add_or_update') {
-			$name = isset($_POST['form_name']) ? sanitize_text_field($_POST['form_name']) : '';
-			$slug_raw = isset($_POST['form_slug']) ? $_POST['form_slug'] : '';
+			$name = self::post_field('form_name');
+			$slug_raw = self::post_field('form_slug');
 			$slug = sanitize_title($slug_raw ?: $name);
-			$url  = isset($_POST['form_url']) ? esc_url_raw(trim($_POST['form_url'])) : '';
-			$maxwidth  = isset($_POST['form_maxwidth']) ? sanitize_text_field($_POST['form_maxwidth']) : '1000px';
-			$minheight = isset($_POST['form_minheight']) ? sanitize_text_field($_POST['form_minheight']) : '70vh';
-			$width     = isset($_POST['form_width']) ? sanitize_text_field($_POST['form_width']) : '100%';
-			$referrer  = isset($_POST['form_referrerpolicy']) ? sanitize_text_field($_POST['form_referrerpolicy']) : 'no-referrer';
-			$loading   = isset($_POST['form_loading']) ? sanitize_text_field($_POST['form_loading']) : 'lazy';
+			$url  = esc_url_raw(trim(self::post_field('form_url')));
+			$maxwidth  = self::sanitize_css_size(self::post_field('form_maxwidth'), '1000px');
+			$minheight = self::sanitize_css_size(self::post_field('form_minheight'), '70vh');
+			$width     = self::sanitize_css_size(self::post_field('form_width'), '100%');
+			$referrer  = self::post_field('form_referrerpolicy') ?: 'no-referrer';
+			$loading   = self::post_field('form_loading') ?: 'lazy';
+
+			if (!in_array($referrer, self::allowed_referrer_policies(), true)) {
+				$referrer = 'no-referrer';
+			}
+
+			if (!in_array($loading, self::allowed_loading_values(), true)) {
+				$loading = 'lazy';
+			}
 
 			if ($slug && $url) {
 				$forms[$slug] = [
@@ -96,7 +105,7 @@ class LL706_N8N_Forms_Plugin {
 			}
 		}
 		elseif ($action === 'delete' && !empty($_POST['delete_slug'])) {
-			$del = sanitize_title($_POST['delete_slug']);
+			$del = sanitize_title(self::post_field('delete_slug'));
 			if (isset($forms[$del])) {
 				unset($forms[$del]);
 				update_option(self::OPTION_KEY, $forms, false);
@@ -109,6 +118,8 @@ class LL706_N8N_Forms_Plugin {
 		if (!current_user_can('manage_options')) return;
 		$forms = get_option(self::OPTION_KEY, []);
 		if (!is_array($forms)) $forms = [];
+		$referrer_policies = self::allowed_referrer_policies();
+		$loading_values = self::allowed_loading_values();
 		settings_errors('ll706_n8n_forms');
 		?>
 		<div class="wrap">
@@ -149,14 +160,14 @@ class LL706_N8N_Forms_Plugin {
 						<td>
 							<label>Referrer Policy
 								<select name="form_referrerpolicy">
-									<?php foreach (['no-referrer','origin-when-cross-origin','strict-origin-when-cross-origin','same-origin'] as $opt): ?>
+									<?php foreach ($referrer_policies as $opt): ?>
 									<option value="<?php echo esc_attr($opt); ?>"><?php echo esc_html($opt); ?></option>
 									<?php endforeach; ?>
 								</select>
 							</label>
 							&nbsp; <label>Loading
 								<select name="form_loading">
-									<?php foreach (['lazy','eager'] as $opt): ?>
+									<?php foreach ($loading_values as $opt): ?>
 									<option value="<?php echo esc_attr($opt); ?>"><?php echo esc_html($opt); ?></option>
 									<?php endforeach; ?>
 								</select>
@@ -184,10 +195,17 @@ class LL706_N8N_Forms_Plugin {
 					</thead>
 					<tbody>
 					<?php foreach ($forms as $slug => $f): ?>
+						<?php
+						if (!is_array($f)) {
+							continue;
+						}
+						$form_name = isset($f['name']) ? $f['name'] : $slug;
+						$form_url = isset($f['url']) ? $f['url'] : '';
+						?>
 						<tr>
-							<td><?php echo esc_html($f['name']); ?></td>
+							<td><?php echo esc_html($form_name); ?></td>
 							<td><code><?php echo esc_html($slug); ?></code></td>
-							<td><code style="word-break:break-all;"><?php echo esc_url($f['url']); ?></code></td>
+							<td><code style="word-break:break-all;"><?php echo esc_url($form_url); ?></code></td>
 							<td><code>[n8n_form id="<?php echo esc_html($slug); ?>"]</code></td>
 							<td>
 								<form method="post" style="display:inline" onsubmit="return confirm('Delete this form?');">
@@ -215,18 +233,31 @@ class LL706_N8N_Forms_Plugin {
 		], $atts, 'n8n_form');
 
 		$forms = get_option(self::OPTION_KEY, []);
+		if (!is_array($forms)) return '';
 		$slug = sanitize_title($atts['id']);
-		if (!$slug || empty($forms[$slug])) return '';
+		if (!$slug || empty($forms[$slug]) || !is_array($forms[$slug])) return '';
 
 		$f = $forms[$slug];
 		$url = isset($f['url']) ? $f['url'] : '';
 		if (!$url) return '';
 
-		$maxwidth = $atts['maxwidth'] ? sanitize_text_field($atts['maxwidth']) : (isset($f['maxwidth']) ? $f['maxwidth'] : '1000px');
-		$minheight= $atts['minheight']? sanitize_text_field($atts['minheight']) : (isset($f['minheight'])? $f['minheight'] : '70vh');
-		$width    = $atts['width'] ? sanitize_text_field($atts['width']) : (isset($f['width']) ? $f['width'] : '100%');
+		$saved_maxwidth = isset($f['maxwidth']) ? $f['maxwidth'] : '1000px';
+		$saved_minheight = isset($f['minheight']) ? $f['minheight'] : '70vh';
+		$saved_width = isset($f['width']) ? $f['width'] : '100%';
+
+		$maxwidth = $atts['maxwidth'] ? self::sanitize_css_size($atts['maxwidth'], '1000px') : self::sanitize_css_size($saved_maxwidth, '1000px');
+		$minheight= $atts['minheight']? self::sanitize_css_size($atts['minheight'], '70vh') : self::sanitize_css_size($saved_minheight, '70vh');
+		$width    = $atts['width'] ? self::sanitize_css_size($atts['width'], '100%') : self::sanitize_css_size($saved_width, '100%');
 		$referrer = isset($f['referrerpolicy']) ? $f['referrerpolicy'] : 'no-referrer';
 		$loading  = isset($f['loading']) ? $f['loading'] : 'lazy';
+
+		if (!in_array($referrer, self::allowed_referrer_policies(), true)) {
+			$referrer = 'no-referrer';
+		}
+
+		if (!in_array($loading, self::allowed_loading_values(), true)) {
+			$loading = 'lazy';
+		}
 
 		$container_style = sprintf('max-width:%s;margin:0 auto;min-height:%s;', esc_attr($maxwidth), esc_attr($minheight));
 		$iframe_style    = sprintf('border:0;width:%s;height:100%%;min-height:%s;display:block;', esc_attr($width), esc_attr($minheight));
@@ -235,6 +266,40 @@ class LL706_N8N_Forms_Plugin {
 		$html .= '<iframe src="' . esc_url($url) . '" loading="' . esc_attr($loading) . '" referrerpolicy="' . esc_attr($referrer) . '" style="' . $iframe_style . '"></iframe>';
 		$html .= '</div>';
 		return $html;
+	}
+
+	private static function allowed_referrer_policies() {
+		return ['no-referrer', 'origin-when-cross-origin', 'strict-origin-when-cross-origin', 'same-origin'];
+	}
+
+	private static function allowed_loading_values() {
+		return ['lazy', 'eager'];
+	}
+
+	private static function post_field($key) {
+		if (!isset($_POST[$key]) || is_array($_POST[$key])) {
+			return '';
+		}
+
+		return sanitize_text_field(wp_unslash($_POST[$key]));
+	}
+
+	private static function sanitize_css_size($value, $default) {
+		if (!is_scalar($value)) {
+			return $default;
+		}
+
+		$value = trim(sanitize_text_field($value));
+
+		if ($value === 'auto') {
+			return $value;
+		}
+
+		if (preg_match('/^\d+(?:\.\d+)?(?:px|%|em|rem|vh|vw|vmin|vmax)$/', $value)) {
+			return $value;
+		}
+
+		return $default;
 	}
 }
 
