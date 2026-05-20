@@ -3,9 +3,9 @@
  * Plugin Name: n8n Form Integration
  * Plugin URI: https://github.com/jcjason12108-alt/embed-n8n-Forms/
  * Description: Manage multiple n8n form embeds and generate shortcodes to place them anywhere. Shortcode: [n8n_form id="your-form-slug" maxwidth="1000px" minheight="70vh" width="100%"].
- * Version: 1.0.6
+ * Version: 1.0.7
  * Requires at least: 6.0
- * Tested up to: 6.9.4
+ * Tested up to: 7.0
  * Requires PHP: 7.4
  * Author: Jason Cox
  * Author URI: https://github.com/jcjason12108-alt

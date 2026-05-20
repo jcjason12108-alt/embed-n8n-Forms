@@ -2,9 +2,9 @@
 Contributors: Jason Cox
 Tags: n8n, forms, shortcode, embed, iframe
 Requires at least: 6.0
-Tested up to: 6.9.4
+Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.0.6
+Stable tag: 1.0.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -33,6 +33,9 @@ Use `[n8n_form id="your-form-slug"]`.
 Yes. Use attributes such as `[n8n_form id="your-form-slug" maxwidth="1000px" minheight="70vh" width="100%"]`.
 
 == Changelog ==
+
+= 1.0.7 =
+* Updated plugin metadata for WordPress compatibility through 7.0.
 
 = 1.0.6 =
 * Restored compatibility for the previous settings page URL and saved form option data.
