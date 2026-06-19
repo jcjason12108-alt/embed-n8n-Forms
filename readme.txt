@@ -4,7 +4,7 @@ Tags: n8n, forms, shortcode, embed, iframe
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.0.7
+Stable tag: 1.0.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -33,6 +33,12 @@ Use `[n8n_form id="your-form-slug"]`.
 Yes. Use attributes such as `[n8n_form id="your-form-slug" maxwidth="1000px" minheight="70vh" width="100%"]`.
 
 == Changelog ==
+
+= 1.0.8 =
+* Updated Plugin Update Checker to 5.7.
+* Added plugin-specific GitHub token support via `N8N_FORM_INTEGRATION_GITHUB_TOKEN`, with `PLUGIN_UPDATE_GITHUB_TOKEN` retained as a fallback.
+* Hardened saved and legacy form data normalization and limited iframe URLs to http and https.
+* Added invalid URL feedback on the settings form.
 
 = 1.0.7 =
 * Updated plugin metadata for WordPress compatibility through 7.0.
